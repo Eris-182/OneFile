@@ -1,0 +1,45 @@
+{
+    "name": "ProCoderMew",
+    "version": "1.0.0",
+    "main": "index.js",
+    "scripts": {
+        "start": "node --trace-warnings --async-stack-traces index"
+    },
+    "license": "MIT",
+    "engines": {
+        "node": "12.x"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ProCoderMew/OneFile.git"
+    },
+    "author": "ProCoderMew",
+    "bugs": {
+        "url": "https://github.com/ProCoderMew/OneFile/issues"
+    },
+    "homepage": "https://github.com/ProCoderMew/OneFile#readme",
+    "dependencies": {
+        "axios": "*",
+        "chalk": "*",
+        "fca-unofficial": "*",
+        "fs-extra": "*",
+        "totp-generator": "*",
+        "ytdl-core": "*"
+    },
+    "data": {
+        "default": {
+            "email": "",
+            "password": "",
+            "token": "",
+            "name": "Bot",
+            "prefix": "/",
+            "admin": "",
+            "keys": {
+                "youtube": ""
+            }
+        },
+        "threads": [],
+        "users": [],
+        "cookies": []
+    }
+}
