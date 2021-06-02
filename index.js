@@ -14,7 +14,8 @@ const BigData = {
     reply: new Map(),
     threadData: {},
     userData: {},
-    default: botData.default
+    default: botData.default,
+    event: { id: '', messageID: '' }
 };
 
 const Data = {
@@ -41,18 +42,26 @@ const modules = {
         else return console.log(chalk[color == undefined ? "greenBright" : color](`[ ${option.toUpperCase()} ] » `) + `${data}`);
     },
     getName: function (api, id) {
-        return new Promise(async (resolve, reject) => {
+        return new Promise(async (resolve) => {
             if (botData.users.some(i => i.userID == id)) {
                 resolve(botData.users.find(e => e.userID == id).name);
             } else if (!botData.users.some(i => i.userID == id)) {
                 var name = (await api.getUserInfo(id))[id];
                 resolve(name)
             } else {
-                reject({
-                    error: "Can not find name"
-                })
+                resolve('');
             }
         });
+    },
+    checkUpdate: async function () {
+        try {            
+            const { data } = await axios.get("https://raw.githubusercontent.com/ProCoderMew/OneFile/main/package.json");
+            if (data.version != package.version) {
+                modules.logger("Đã có bản cập nhật mới.", "update");
+            }
+        } catch {
+            modules.logger("Đã có lỗi xảy ra.", "update");
+        }
     },
     loginWithEmail: function () {
         return login({ email: botData.default.email, password: botData.default.password }, Data.loginEmailOptions, (err, api) => {
@@ -62,7 +71,7 @@ const modules = {
                         err.continue(totp(botData.default.token));
                         break;
                     default:
-                        console.error(err);
+                        console.error(err.error);
                         process.exit();
                         break;
                 }
@@ -76,8 +85,12 @@ const modules = {
     },
     loginWithCookie: function () {
         require("npmlog").emitLog = () => { };
+        modules.checkUpdate();
         return login({ appState: botData.cookies }, function (err, api) {
-            if (err) return modules.logger(err, "login", 1);
+            if (err) {
+                if (err.error == "Not logged in" || err.error.indexOf("Error retrieving userID.") == 0) return modules.loginWithEmail();
+                else return modules.logger(err, "login", 1);
+            }
             botData.cookies = api.getAppState();
             writeFileSync("./package.json", JSON.stringify(package, null, 4));
             api.setOptions(Data.loginCookieOptions);
@@ -88,11 +101,26 @@ const modules = {
             const temp = ["presence", "typ", "read_receipt"];
             const handleListen = function (error, event) {
                 if (error) return modules.logger(error.error, "listen", 1);
-                if (temp.includes(event.type)) return;
+                if (temp.includes(event.type)) return;                
+                if (BigData.event.id == api.getCurrentUserID() &&
+                    BigData.event.messageID == event.messageID) {
+                    api.listenMqtt().stopListening();
+                }
+                listen(event);
                 if (BigData.logEvent == true) console.log(event);
-                return listen(event);
+                BigData.event.id = event.senderID || '';
+                BigData.event.messageID = event.messageID || '';
             };
-            return api.listenMqtt(handleListen);          
+            api.listenMqtt(handleListen);
+            setInterval(async function () {
+                api.listenMqtt().stopListening();
+                await restart();
+            }, 3600000);
+            async function restart() {
+                await new Promise(resolve => setTimeout(resolve, 20000));
+                logger("Bắt đầu nhận tin.", "status");
+                return api.listenMqtt(handleListen);
+            };
         })
     },
     listen: function ({ api }) {
