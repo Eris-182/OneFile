@@ -1,6 +1,6 @@
 {
-    "name": "ProCoderMew",
-    "version": "1.0.1",
+    "name": "MewBot",
+    "version": "1.0.2",
     "main": "index.js",
     "scripts": {
         "start": "node --trace-warnings --async-stack-traces index"
@@ -31,7 +31,7 @@
             "email": "",
             "password": "",
             "token": "",
-            "name": "Bot",
+            "name": "MewBot",
             "prefix": "/",
             "admin": "",
             "keys": {

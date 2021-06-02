@@ -15,6 +15,7 @@ const BigData = {
     threadData: {},
     userData: {},
     default: botData.default,
+    wait: false,
     event: { id: '', messageID: '' }
 };
 
@@ -36,7 +37,7 @@ const Data = {
 
 const modules = {
     logger: function (data, option, more) {
-        const color = more == 0 ? "greenBright" : more == 1 ? "redBright" : more == 2 ? "cyanBright" : more == 3 ? "magentaBright" : undefined;
+        const color = more == 0 ? "greenBright" : more == 1 ? "redBright" : more == 2 ? "cyanBright" : more == 3 ? "magentaBright" : more == 4 ? "yellow" : undefined;
         if (option == 0) return console.log(chalk.yellow(data));
         else if (option == undefined) return console.log(chalk.greenBright(`[ ${data.toUpperCase()} ] » `) + data);
         else return console.log(chalk[color == undefined ? "greenBright" : color](`[ ${option.toUpperCase()} ] » `) + `${data}`);
@@ -57,10 +58,10 @@ const modules = {
         try {            
             const { data } = await axios.get("https://raw.githubusercontent.com/ProCoderMew/OneFile/main/package.json");
             if (data.version != package.version) {
-                modules.logger("Đã có bản cập nhật mới.", "update");
-            }
+                modules.logger("Đã có bản cập nhật mới.", "update", 1);
+            } else modules.logger("Bạn đang sử dụng phiên bản mới nhất.", "update", 3);
         } catch {
-            modules.logger("Đã có lỗi xảy ra.", "update");
+            modules.logger("Đã có lỗi xảy ra.", "update", 1);
         }
     },
     loginWithEmail: function () {
@@ -83,9 +84,8 @@ const modules = {
             return modules.loginWithCookie();
         });
     },
-    loginWithCookie: function () {
-        require("npmlog").emitLog = () => { };
-        modules.checkUpdate();
+    loginWithCookie: async function () {
+        require("npmlog").emitLog = () => { };        
         return login({ appState: botData.cookies }, function (err, api) {
             if (err) {
                 if (err.error == "Not logged in" || err.error.indexOf("Error retrieving userID.") == 0) return modules.loginWithEmail();
@@ -150,6 +150,7 @@ const modules = {
         }
     },
     createData: async function ({ event, api }) {
+        if (BigData.wait == true) return;
         var { senderID, threadID, isGroup } = event;
         threadID = parseInt(threadID);
         senderID = parseInt(senderID);
@@ -158,18 +159,22 @@ const modules = {
         let threads = botData.threads;
         let users = botData.users;
         if (!users.some(e => e.userID == senderID)) {
+            BigData.wait = true;
             var userData = (await api.getUserInfo(senderID))[senderID];
             let name = userData.name;
             let sex = userData.gender;
             users.push({ userID: senderID, name, sex, block: false });
             modules.loadData();
             modules.logger(senderID + " | " + name, "user", 2);
+            BigData.wait = false;
         }
         if (!threads.some(e => e.threadID == threadID) && isGroup) {
+            BigData.wait = true;            
             let threadInfo = await api.getThreadInfo(threadID);
-            threads.push({ threadID, name: threadInfo.name, prefix: BigData.default.prefix, block: false, selfListen: false, blockCmd: [], shortcuts: [] });
+            threads.push({ threadID, name: threadInfo.name, prefix: BigData.default.prefix, block: false, selfListen: false, blockCmd: [], shortcuts: [] });            
             modules.loadData();
             modules.logger(threadID + " | " + threadInfo.name, "thread", 2);
+            BigData.wait = false;            
         }
         writeFileSync("./package.json", JSON.stringify(package, null, "\t"));
     },
@@ -278,15 +283,10 @@ function Message({ api }) {
             // set prefix        
             if (args[0] == "setprefix" && isAdmin()) {
                 if (!args[1]) return out("Prefix cần set where :D?");
-                try {
-                    BigData.threadData[threadID].prefix = args[1];
-                    botData.threads.find(e => e.threadID == threadID).prefix = args[1];
-                    writeFileSync("./package.json", JSON.stringify(package, null, 4));
-                    return out("Đổi prefix thành công.");
-                }
-                catch {
-                    return out("Đã có lỗi xảy ra.");
-                }
+                BigData.threadData[threadID].prefix = args[1];
+                botData.threads.find(e => e.threadID == threadID).prefix = args[1];
+                writeFileSync("./package.json", JSON.stringify(package, null, 4));
+                return out("Đổi prefix thành công.");
             }
 
             // sing
@@ -296,7 +296,7 @@ function Message({ api }) {
                     var videoInfo = await ytdl.getInfo(args[1]);
                     var { videoId, lengthSeconds } = videoInfo.videoDetails;
                     if (lengthSeconds > 1200) return out("Độ dài video vượt quá mức cho phép, tối đa là 20 phút!");
-                    else return api.sendTypingIndicator(threadID, () => ytdl(videoId, { filter: format => format.itag == '140' }).pipe(createWriteStream(`./${videoId}.m4a`)).on("close", () => out({ body: videoInfo.videoDetails.title, attachment: createReadStream(`./${videoId}.m4a`) }, () => unlinkSync(`./${videoId}.m4a`))));
+                    else return api.sendTypingIndicator(threadID, () => ytdl(videoId, { filter: format => format.itag == '140' }).pipe(createWriteStream(`./${videoId}.m4a`)).on("close", () => out({ body: videoInfo.videoDetails.title, attachment: createReadStream(`./${videoId}.m4a`) }, () => unlinkSync(`./${videoId}.m4a`))).on("error", (e) => out(e)));
                 }
                 else {
                     var msg = '', allId = [], num = 0;
@@ -371,7 +371,7 @@ function Reply({ api }) {
             if (!replyData.some(i => i == e[0])) replyData.push(e[0]);
         }
 
-        var out = function (data, callback = function () { }, mid) {
+        var out = function (data, callback = function () {}, mid) {
             if (!data) return;
             mid = typeof mid == "undefined" ? messageID : mid;
             typeof callback == "string" ? mid = callback : callback;
@@ -390,12 +390,12 @@ function Reply({ api }) {
                     var videoInfo = await ytdl.getInfo(DataInReplyData.replyData[content - 1]);
                     var { lengthSeconds } = videoInfo.videoDetails;
                     if (lengthSeconds > 1200) return out("Độ dài video vượt quá mức cho phép, tối đa là 20 phút!");
-                    else return api.sendTypingIndicator(threadID, () => ytdl(DataInReplyData.replyData[content - 1], { filter: format => format.itag == '140' }).pipe(createWriteStream(`./${DataInReplyData.replyData[content - 1]}.m4a`)).on("close", () => out({ attachment: createReadStream(`./${DataInReplyData.replyData[content - 1]}.m4a`) }, () => unlinkSync(`./${DataInReplyData.replyData[content - 1]}.m4a`))));
+                    else return api.sendTypingIndicator(threadID, () => ytdl(DataInReplyData.replyData[content - 1], { filter: format => format.itag == '140' }).pipe(createWriteStream(`./${DataInReplyData.replyData[content - 1]}.m4a`)).on("close", () => out({ attachment: createReadStream(`./${DataInReplyData.replyData[content - 1]}.m4a`) }, () => unlinkSync(`./${DataInReplyData.replyData[content - 1]}.m4a`))).on("error", (e) => out(e)));
                 break;
             }
+            BigData.reply.delete(event.messageReply.messageID);
+            replyData.splice(replyData.indexOf(event.messageReply.messageID), 1);
         }
-        BigData.reply.delete(event.messageReply.messageID);
-        replyData.splice(replyData.indexOf(event.messageReply.messageID), 1);
     }
 }
 
@@ -415,12 +415,12 @@ function noPrefix({ api }) {
         if (body == "ahihi") return out("=))");
     }
 }
-
+console.clear();
 // get cookie or start bot
-if (!botData.hasOwnProperty('cookies') || botData.cookies.length == 0) {
-    console.clear();
+if (!botData.hasOwnProperty('cookies') || botData.cookies.length == 0) {    
+    modules.checkUpdate();
     return modules.loginWithEmail();
-} else {
-    console.clear();
+} else {    
+    modules.checkUpdate();
     return modules.loginWithCookie();
 }
