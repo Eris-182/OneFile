@@ -1,3 +1,10 @@
+<h1 align="center">Mew Bot</h1>
+
+<p align="center">
+	<img alt="size" src="https://img.shields.io/github/repo-size/ProCoderMew/OneFile.svg?style=flat-square&label=size">
+	<img alt="version" src="https://img.shields.io/badge/dynamic/json?color=brightgreen&label=version&prefix=v&query=%24.version&url=https://raw.githubusercontent.com/ProCoderMew/OneFile/main/package.json&style=flat-square">
+	<a href="https://github.com/ProCoderMew/OneFile/commits"><img alt="commits" src="https://img.shields.io/github/commit-activity/m/ProCoderMew/OneFile?logo=commits&logoColor=red&style=flat-square&label=commit"></a>
+
 # Introduce
 
 - Bot này chỉ có 1 file thôi :)
