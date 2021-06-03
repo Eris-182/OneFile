@@ -51,7 +51,7 @@
 
 # Update
 
-- Tôi sẽ còn update thêm =))    
+- Thêm ban, unban. 
 
 # Author
 

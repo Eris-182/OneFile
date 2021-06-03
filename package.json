@@ -1,6 +1,6 @@
 {
     "name": "MewBot",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "main": "index.js",
     "scripts": {
         "start": "node --trace-warnings --async-stack-traces index"
@@ -38,6 +38,19 @@
                 "youtube": ""
             }
         },
+        "allCmds": [
+            "all",
+            "ban",
+            "log",
+            "rerun",
+            "say",
+            "setprefix",
+            "sing",
+            "sl",
+            "uid",
+            "unban",
+            "uptime"
+        ],
         "threads": [],
         "users": [],
         "cookies": []

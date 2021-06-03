@@ -47,8 +47,8 @@ const modules = {
             if (botData.users.some(i => i.userID == id)) {
                 resolve(botData.users.find(e => e.userID == id).name);
             } else if (!botData.users.some(i => i.userID == id)) {
-                var name = (await api.getUserInfo(id))[id];
-                resolve(name)
+                var name = (await api.getUserInfo(id))[id].name;
+                resolve(name);
             } else {
                 resolve('');
             }
@@ -72,7 +72,7 @@ const modules = {
                         err.continue(totp(botData.default.token));
                         break;
                     default:
-                        console.error(err.error);
+                        modules.logger(err.error, "login", 1);
                         process.exit();
                         break;
                 }
@@ -209,9 +209,11 @@ function Message({ api }) {
     return async function ({ event }) {
         const { threadID, senderID, messageID, body: content } = event;
         if (!event.isGroup) return;
-        if ((Object.keys(BigData.threadData)).some(e => e == threadID) && BigData.threadData[threadID].block == true) return;
-        if ((Object.keys(BigData.userData)).some(e => e == senderID) && BigData.userData[senderID].block == true) return;
-        if (!Object.keys(BigData.threadData).some(e => e == threadID)) return modules.createData({ event, api });
+        if ((Object.keys(BigData.threadData)).some(e => e == threadID) && BigData.threadData[threadID].block == true && senderID != BigData.default.admin) return;
+        if ((Object.keys(BigData.userData)).some(e => e == senderID) && BigData.userData[senderID].block == true && senderID != BigData.default.admin) return;
+        
+        //create data
+        modules.createData({ event, api });
 
         var out = function (data, callback = function () { }, mid) {
             if (!data) return;
@@ -235,6 +237,9 @@ function Message({ api }) {
         if (content.indexOf(prefix) !== 0) return;
         var args = content.slice(prefix.length).trim().split(/ +/);
 
+        //check cmd
+        if (BigData.threadData[threadID].blockCmd.includes(args[0])) return out("Lệnh '" + args[0] + "' đã bị cấm dùng.");
+      
         try {
             var { user: DataUser, thread: DataThread } = modules.getData({ event });
             //all
@@ -249,7 +254,6 @@ function Message({ api }) {
                 }
                 return out({ body, mentions });
             }
-
             // uid
             if (args[0] == "uid") {
                 var msg = '';
@@ -288,7 +292,6 @@ function Message({ api }) {
                 writeFileSync("./package.json", JSON.stringify(package, null, 4));
                 return out("Đổi prefix thành công.");
             }
-
             // sing
             if (args[0] == "sing") {
                 const regexYoutube = /^(https?:\/\/)?(www\.)?(m\.)?(youtube\.com|youtu\.?be)\/.+$/gi;
@@ -332,7 +335,6 @@ function Message({ api }) {
                 };
                 try { modules.listen({ api })(PushEvent) } catch (e) { out(`${e}`) }
             }
-
             // selfListen
             if (args[0] == "sl") {
                 if (BigData.threadData[threadID].selfListen == false) {
@@ -346,7 +348,6 @@ function Message({ api }) {
                 }
                 writeFileSync("./package.json", JSON.stringify(package, null, 4))
             }
-
             //say
             if (args[0] == "say") {
                 var dataSay = args.slice(1).join(" ");
@@ -355,9 +356,105 @@ function Message({ api }) {
                 writeFileSync(`./${name}.mp3`, Buffer.from(data, 'utf-8'));
                 return api.sendMessage({ attachment: createReadStream(`./${name}.mp3`)}, event.threadID, () => unlinkSync(`./${name}.mp3`));                
             }
+            //ban
+            if (args[0] == "ban" && isAdmin()) {
+                switch (args[1]) {
+                    case "cmd":
+                        if (!args[2]) return out("Chưa nhập lệnh cần cấm.");
+                        if (!botData.allCmds.some(e => e == args[2])) return out("Lệnh cần cấm không tồn tại.");
+                        if (BigData.threadData[threadID].blockCmd.includes(args[2])) return out("Lệnh này đã bị cấm từ trước.");
+                        BigData.threadData[threadID].blockCmd.push(args[2]);
+                        out("Đã cấm sử dụng lệnh '" +  args[2] +  "' trong nhóm này.");
+                    break;
+                    case "user":
+                        var mention = Object.keys(event.mentions)[0];
+                        if (!mention) {
+                            if (isNaN(args[2])) return out("ID cần là 1 dãy số.");
+                            if (!botData.users.some(e => e.userID == args[2])) return out("Không có dữ liệu của người dùng.");
+                            if (BigData.userData[args[2]].block == true) return out(BigData.userData[args[2]].name + " đã bị cấm từ trước.");
+                            BigData.userData[args[2]].block = true;
+                            botData.users.find(e => e.userID == args[2]).block = true;
+                            out("Đã cấm người dùng: " + BigData.userData[args[2]].name);
+                        } else {
+                            if (!botData.users.some(e => e.userID == mention)) return out("Không có dữ liệu của người dùng.");
+                            if (BigData.userData[mention].block == true) return out(BigData.userData[args[2]].name + " đã bị cấm từ trước.");
+                            BigData.userData[mention].block = true;
+                            botData.users.find(e => e.userID == mention).block = true;
+                            out("Đã cấm người dùng: " + BigData.userData[args[2]].name);
+                        }
+                    break;
+                    case "thread":
+                        if (!args[2]) {
+                            if (BigData.threadData[threadID].block == true) return out("Nhóm này đã bị cấm từ trước.");
+                            BigData.threadData[threadID].block = true;
+                            botData.threads.find(e => e.threadID == threadID).block = true;
+                            out("Đã cấm nhóm: " + BigData.threadData[threadID].name);                            
+                        } else {
+                            if (isNaN(args[2])) return out("ID cần là 1 dãy số.");
+                            if (!botData.threads.some(e => e.threadID == args[2])) return out("Không có dữ liệu của nhóm.");
+                            if (BigData.threadData[args[2]].block == true) return out(BigData.threadData[args[2]].name + " đã bị cấm từ trước.");
+                            BigData.threadData[args[2]].block = true;
+                            botData.threads.find(e => e.threadID == args[2]).block = true;
+                            out("Đã cấm nhóm: " + BigData.threadData[args[2]].name);
+                        }
+                    break;
+                    default:
+                        return out("Lệnh bạn nhập không đúng, vui lòng thử lại.");
+                    break;
+                }
+                writeFileSync("./package.json", JSON.stringify(package, null, 4));
+            }
+            //ban
+            if (args[0] == "unban" && isAdmin()) {
+                switch (args[1]) {
+                    case "cmd":
+                        if (!args[2]) return out("Chưa nhập lệnh cần bỏ cấm.");
+                        if (!botData.allCmds.some(e => e == args[2])) return out("Lệnh cần bỏ cấm không tồn tại.");
+                        if (!BigData.threadData[threadID].blockCmd.includes(args[2])) return out("Lệnh này chưa bị cấm.");
+                        BigData.threadData[threadID].blockCmd.splice(BigData.threadData[threadID].blockCmd.indexOf(args[2]));
+                        out("Đã bỏ cấm lệnh '" +  args[2] +  "' trong nhóm này.");
+                    break;
+                    case "user":
+                        var mention = Object.keys(event.mentions)[0];
+                        if (!mention) {
+                            if (isNaN(args[2])) return out("ID cần là 1 dãy số.");
+                            if (!botData.users.some(e => e.userID == args[2])) return out("Không có dữ liệu của người dùng.");
+                            if (BigData.userData[args[2]].block == false) return out(BigData.userData[args[2]].name + " chưa bị cấm.");
+                            BigData.userData[args[2]].block = false;
+                            botData.users.find(e => e.userID == args[2]).block = false;
+                            out("Đã bỏ cấm người dùng: " + BigData.userData[args[2]].name);
+                        } else {
+                            if (!botData.users.some(e => e.userID == mention)) return out("Không có dữ liệu của người dùng.");
+                            if (BigData.userData[mention].block == false) return out(BigData.userData[mention].name + " đã bị cấm từ trước.");
+                            BigData.userData[mention].block = false;
+                            botData.users.find(e => e.userID == mention).block = false;
+                            out("Đã bỏ cấm người dùng: " + BigData.userData[mention].name);
+                        }
+                    break;
+                    case "thread":
+                        if (!args[2]) {
+                            if (BigData.threadData[threadID].block == false) return out("Nhóm này chưa bị cấm.");
+                            BigData.threadData[threadID].block = false;
+                            botData.threads.find(e => e.threadID == threadID).block = false;
+                            out("Đã bỏ cấm nhóm: " + BigData.threadData[threadID].name);                            
+                        } else {
+                            if (isNaN(args[2])) return out("ID cần là 1 dãy số.");
+                            if (!botData.threads.some(e => e.threadID == args[2])) return out("Không có dữ liệu của nhóm.");
+                            if (BigData.threadData[args[2]].block == false) return out(BigData.threadData[args[2]].name + " chưa bị cấm.");
+                            BigData.threadData[args[2]].block = false;
+                            botData.threads.find(e => e.threadID == args[2]).block = false;
+                            out("Đã bỏ cấm nhóm: " + BigData.threadData[args[2]].name);
+                        }
+                    break;
+                    default:
+                        return out("Lệnh bạn nhập không đúng, vui lòng thử lại.");
+                    break;                    
+                }
+                writeFileSync("./package.json", JSON.stringify(package, null, 4));
+            }          
         } catch (e) {
-            out(`${e.name}: ${e.message} in cmd ${args[0]}`);
-            modules.logger(`${e.name}: ${e.message} in cmd ${args[0]}`, "message", 1);
+            out(`${e.name}: ${e.message} tại lệnh ${args[0]}`);
+            modules.logger(`${e.name}: ${e.message} tại lệnh ${args[0]}`, "message", 1);
         }
     }
 }
