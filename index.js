@@ -88,7 +88,7 @@ const modules = {
         require("npmlog").emitLog = () => { };        
         return login({ appState: botData.cookies }, function (err, api) {
             if (err) {
-                if (err.error == "Not logged in" || err.error.indexOf("Error retrieving userID.") == 0) return modules.loginWithEmail();
+                if (err.error == "Not logged in." || err.error.indexOf("Error retrieving userID.") == 0) return modules.loginWithEmail();
                 else return modules.logger(err, "login", 1);
             }
             botData.cookies = api.getAppState();
